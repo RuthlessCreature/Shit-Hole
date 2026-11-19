@@ -1,0 +1,53 @@
+{
+  "date": "2026-11-18",
+  "retrieved_at": "2026-11-19T09:19:34.449536+00:00",
+  "verdict": "PASS",
+  "provider_rows": 9330,
+  "normalized_rows": 9330,
+  "assets": {
+    "其他证券": 1675,
+    "A股": 5580,
+    "可转债候选": 258,
+    "ETF/基金候选": 1817
+  },
+  "errors": [],
+  "price_crosscheck_mismatches": [
+    {
+      "code": "sh600141",
+      "snapshot_close": 21.81,
+      "tencent_19_prev": 21.61,
+      "gap": 0.2
+    },
+    {
+      "code": "sh603043",
+      "snapshot_close": 15.03,
+      "tencent_19_prev": 14.88,
+      "gap": 0.15
+    },
+    {
+      "code": "sh603709",
+      "snapshot_close": 9.94,
+      "tencent_19_prev": 9.89,
+      "gap": 0.05
+    },
+    {
+      "code": "sh603866",
+      "snapshot_close": 4.06,
+      "tencent_19_prev": 3.94,
+      "gap": 0.12
+    },
+    {
+      "code": "sz002281",
+      "snapshot_close": 86.84,
+      "tencent_19_prev": 86.47,
+      "gap": 0.37
+    }
+  ],
+  "mismatch_count": 5,
+  "required_a_count": 5000,
+  "notes": [
+    "zero screening gates: all asset rows retained",
+    "asset class inferred by prefix: review issuer/classification before live use",
+    "no 11/18 delisting/suspension list until separately ingested"
+  ]
+}

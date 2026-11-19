@@ -1,0 +1,6 @@
+# Minimal free-data adapters; pin resolved versions in a lock file after local smoke tests.
+baostock
+akshare
+pandas
+requests
+pytest
