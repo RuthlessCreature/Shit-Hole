@@ -1,6 +1,7 @@
 """Logic B 2026-11-18: zero-gate, all instruments, evidence-level diagnostics.
 Never imputes a valuation or classifies an observed loss as mispricing.
 """
+import argparse
 import collections
 import csv
 import json
@@ -8,14 +9,25 @@ import statistics
 from pathlib import Path
 
 ROOT=Path(__file__).parent
-SRC=ROOT/'verified_snapshots'
-DATE='2026-11-18'
-raw=list(csv.DictReader((SRC/'20261118_normalized.csv').open(encoding='utf-8-sig')))
+argp=argparse.ArgumentParser(description='Price-only research observations; never fair-value claims')
+argp.add_argument('--date',default='2026-11-18')
+argp.add_argument('--snapshot-dir',type=Path,default=ROOT/'verified_snapshots')
+argp.add_argument('--input-csv',type=Path)
+argp.add_argument('--output',type=Path)
+args=argp.parse_args()
+SRC=args.snapshot_dir
+DATE=args.date
+date_code=DATE.replace('-','')
+input_csv=args.input_csv or (SRC/f'{date_code}_normalized.csv')
+raw=list(csv.DictReader(input_csv.open(encoding='utf-8-sig')))
 masterfile=SRC/'security_master.json'
 master=json.loads(masterfile.read_text()) if masterfile.exists() else {'securities':{},'pages_obtained':0,'pages_required':None}
-names=json.loads((ROOT/'security_name_map.json').read_text()) if (ROOT/'security_name_map.json').exists() else {}
-oldq=json.loads((ROOT/'tencent_full_quotes.json').read_text()).get('quotes',{}) if (ROOT/'tencent_full_quotes.json').exists() else {}
-events=json.loads((ROOT/'event_snapshot_20261118.json').read_text()).get('rows',[]) if (ROOT/'event_snapshot_20261118.json').exists() else []
+names_file=SRC.parent/'security_name_map.json'
+names=json.loads(names_file.read_text()) if names_file.exists() else {}
+oldq_file=SRC.parent/'tencent_full_quotes.json'
+oldq=json.loads(oldq_file.read_text()).get('quotes',{}) if oldq_file.exists() else {}
+event_file=SRC.parent/f'event_snapshot_{date_code}.json'
+events=json.loads(event_file.read_text()).get('rows',[]) if event_file.exists() else []
 ev_by={e['code']:e for e in events}
 hist=collections.defaultdict(dict)
 dates=[]
@@ -78,18 +90,18 @@ for r in raw:
         if st:tags.append('ST风险警示')
         if close and close<1:tags.append('低于1元')
         elif close and close<=1.2:tags.append('1—1.2元面值观察')
-        if suspended:tags.append('11/18无成交/停牌')
+        if suspended:tags.append(DATE+'无成交/停牌')
         if pct is not None and pct<=-0.07:tags.append('单日跌幅≥7%')
         if pct5 is not None and pct5<=-0.20:tags.append('5日回撤≥20%')
         if vr is not None and vr>=2:tags.append('成交量≥5日均量2倍')
         if turn is not None and turn>=20:tags.append('换手率≥20%')
-        if e and e.get('event') in ('跌停','涨停'):tags.append('18日'+e['event']+'事件')
+        if e and e.get('event') in ('跌停','涨停'):tags.append(DATE+' '+e['event']+'事件')
     elif asset=='可转债':
         if close and close<90:tags.append('债价低于90')
         elif close and close<100:tags.append('债价低于100')
         if pct is not None and pct<=-0.05:tags.append('单日跌幅≥5%')
         if vr is not None and vr>=2:tags.append('成交量≥5日均量2倍')
-        if suspended:tags.append('11/18无成交')
+        if suspended:tags.append(DATE+'无成交')
     # Price anomalies are only prompts for further research; valuation is unknown.
     score=(3 if asset=='A股' and close and close<1 else 0)+\
           (1 if st else 0)+(2 if pct is not None and pct<=-0.07 else 0)+\
@@ -104,7 +116,7 @@ for r in raw:
         'zero_volume':suspended,'event':e.get('event') if e else None,
         'signals':tags,'attention_score_not_value':score,
         'fair_value':None,'mispricing_pct':None,'mispricing_evidence':'未计算：缺企业权益价值/债券清偿价值及概率条件',
-        'source':'369数据 2026-11-18 原始日K'} )
+        'source':'369数据 '+DATE+' 原始日K' if input_csv.name.endswith('_normalized.csv') else '外部输入 '+DATE+' 日K（需核验来源）'} )
 
 stats=collections.Counter(x['asset'] for x in out)
 stock=[x for x in out if x['asset']=='A股'];cb=[x for x in out if x['asset']=='可转债']
@@ -121,6 +133,8 @@ summary={'date':DATE,'days_obtained':len(dates),'historical_dates':dates,
          'a_observation_codes':sum(bool(x['signals']) for x in stock),
          'cb_observation_codes':sum(bool(x['signals']) for x in cb),
          'missing_names':sum(not x['name'] for x in out),
-         'note':'无门禁；所有证券保留。观察标签不等于实际低估。连续低于1元是样本观察，不是交易所官方退市计数。'}
-(SRC/'logic_b_all_instruments.json').write_text(json.dumps({'summary':summary,'rows':out},ensure_ascii=False))
+         'note':'无门禁；所有证券保留。观察标签不等于实际低估。连续低于1元是样本观察，不是交易所官方退市计数。历史ST名称尚未PIT核验。'}
+output=args.output or (SRC/'logic_b_all_instruments.json' if DATE=='2026-11-18' else SRC/f'logic_b_all_instruments_{date_code}.json')
+output.parent.mkdir(parents=True,exist_ok=True)
+output.write_text(json.dumps({'summary':summary,'rows':out},ensure_ascii=False))
 print(json.dumps(summary,ensure_ascii=False,indent=1))
