@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shit-hole-logic-b",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-11-23",
+  "limits": { "cpu_ms": 300000 },
+  "triggers": {
+    "crons": ["20 10 * * 1-5"]
+  },
+  "queues": {
+    "producers": [{ "binding": "BACKFILL_QUEUE", "queue": "shit-hole-history-backfill" }],
+    "consumers": [{
+      "queue": "shit-hole-history-backfill",
+      "max_batch_size": 1,
+      "max_batch_timeout": 0,
+      "max_concurrency": 1,
+      "max_retries": 5,
+      "retry_delay": 60
+    }]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "shit-hole-research",
+      "database_id": "REPLACE_WITH_REAL_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "RAW", "bucket_name": "shit-hole-research-raw" }
+  ],
+  "vars": {
+    "PRIMARY_MARKET_SOURCE": "baostock",
+    "MIN_A_COUNT": "5000",
+    "MIN_CB_COUNT": "200"
+  },
+  "observability": { "enabled": true }
+}
