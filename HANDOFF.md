@@ -4,13 +4,13 @@
 
 用户已经明确：有 **Cloudflare Workers Paid**，逻辑B生产系统要**完全云端无人值守**，不使用本地电脑采集，也不默认依赖 GitHub Actions。此前文档提到的“本地 Codex”只是工程开发和历史脚本迁移的上下文，不再是生产运行方案。整个项目必须与其他交易系统及其 Cloudflare 项目隔离。**2026-11-23的独立Worker部署已经得到用户授权并实际完成；后续其他环境/项目的部署仍需单独授权。**
 
-已上线 [`cloudflare/README.md`](cloudflare/README.md) 所述独立系统：Paid Worker 直接定时触发、369日K鉴权抓取、D1热数据/任务审计、R2冷历史、公开汇总状态网页和未启用Secret的受保护REST端点。**公网面板：https://shit-hole-logic-b.nostalgia-ho.workers.dev/** 。当日采集北京时间16:20，历史回填每15分钟一个真实交易日，所有状态来自生产D1。页面已通过公网浏览器验收。
+已上线 [`cloudflare/README.md`](cloudflare/README.md) 所述独立系统：Paid Worker 直接定时触发、369日K鉴权抓取、D1热数据/任务审计、R2冷历史、公开汇总状态网页和未启用Secret的受保护REST端点。**公网面板：https://shit-hole-logic-b.nostalgia-ho.workers.dev/** 。当日采集北京时间16:20，历史回填每5分钟一个真实交易日，所有状态来自生产D1。页面已通过公网浏览器验收。
 
 真实状态：Cloudflare 369源Secret已生效、历史交易日历及至少一个历史交易日已实抓。**2026-11-23 16:15**回填日历1668日，2020-01-02历史行情5346条已归档R2；**16:20**当日任务采集9342条并全部入D1。2020-01-02历史转债池严重欠缺：粗分10条中9条是深市回购代码；源不能称为股债全覆盖。现有 `cloudflare/src/core.mjs` 已修复后续分类，旧R2归档须另行重标准化。上交所、深交所、巨潮仍只有首页探针（巨潮当次HTTP 446），不能视为免费业务数据适配器成功。MCP、云端交易卡、历史ST、财报、转债条款和信用债全量数据仍未完成。
 
 本轮离线验收：`node --test cloudflare/tests/*.test.mjs` **20项通过**；原有 Python 10项为此前执行结果，本轮未复测。**Cloudflare生产D1迁移 `0001`、`0002`、Worker脚本与两条Cron均已完成，R2历史实物已读取核验。**
 
-管理员下一步：**不要重复创建已有D1/R2和Worker**。先观察3次历史试抓后自动暂停的审计结果，核实2020行情与覆盖差异，再决定延长`attempt_limit`；必须解决历史可转债主表/行情缺口。后续如需启用受保护REST，应由用户独立配置 `READ_TOKEN`、`ADMIN_TOKEN`，不要复用369上游Secret，也不得在聊天/GitHub泄漏密钥。完整技术记录见 [`docs/HISTORICAL_BACKFILL.md`](docs/HISTORICAL_BACKFILL.md)。
+管理员下一步：**不要重复创建已有D1/R2和Worker**。2026-11-23三个历史交易日均已归档（16047条），随后用户明确要求**不再试抓、全量回填剩余1665日**：代码改为`attempt_limit=0`无限模式、历史Cron每5分钟一次。必须持续监控失败日/提供商额度，并解决历史可转债主表与行情缺口。后续如需启用受保护REST，应由用户独立配置 `READ_TOKEN`、`ADMIN_TOKEN`，不要复用369上游Secret，也不得在聊天/GitHub泄漏密钥。完整技术记录见 [`docs/HISTORICAL_BACKFILL.md`](docs/HISTORICAL_BACKFILL.md)。
 
 后续核心优先级仍是：官方/免费业务数据源真实采集与独立证券池覆盖核验 → 20日历史和披露时点 → 云端扫描研究卡 → 只读MCP连接。不得把“Cloudflare能访问首页”冒充“已经覆盖全市场”。
 
