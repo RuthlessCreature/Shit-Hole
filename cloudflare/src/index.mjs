@@ -263,7 +263,7 @@ export default {
   },
   async scheduled(event, env, ctx) {
     // Incremental collection and bounded historical backfill are separate Crons.
-    if (event.cron === '*/15 * * * *') {
+    if (event.cron === '*/5 * * * *') {
       ctx.waitUntil((async () => {
         const result = await runBackfill(env, collectDay);
         console.log(JSON.stringify({ event: 'logic_b_backfill', ...result }));
