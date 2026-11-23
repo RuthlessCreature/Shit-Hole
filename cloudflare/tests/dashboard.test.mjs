@@ -27,6 +27,7 @@ test('public status reports only aggregates, with no secrets or raw R2 paths', a
     '2026-11-23T08:00:00Z', 'ACCESS_BLOCKED', 403);
   sqlite.prepare(`INSERT INTO backfill_days(trade_date,status,attempts,last_run_id,updated_at)
     VALUES(?,?,?,?,?)`).run('2020-01-02', 'STORED_UNVERIFIED', 1, 'run-123', '2026-11-23T08:00:00Z');
+  sqlite.prepare(`UPDATE backfill_control SET last_error=? WHERE id=1`).run('HTTP_429_STOP');
   const env = { DB: { prepare(sql) { return { bind(...params) { return {
     async first() { return sqlite.prepare(sql).get(...params) ?? null; },
     async all() { return { results: sqlite.prepare(sql).all(...params) }; },
@@ -36,6 +37,7 @@ test('public status reports only aggregates, with no secrets or raw R2 paths', a
     const overview = await readPublicOverview(env);
     assert.equal(overview.history.start_date, '2020-01-01');
     assert.equal(overview.history.stored_unverified, 1);
+    assert.equal(overview.history.last_error_code, 'HTTP_429_STOP');
     assert.equal(overview.probes.length, 1);
     const serialized = JSON.stringify(overview);
     assert.ok(!serialized.includes('provider.json'));
