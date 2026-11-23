@@ -1,4 +1,8 @@
-# Cloudflare-only 采集基础设施（Paid Workers）
+## Cloudflare-only 采集基础设施（Paid Workers）
+
+## 2026-11-23 实际部署记录
+
+经用户指定，已在独立的 Cloudflare 个人账户中创建并上传：Worker `shit-hole-logic-b`、D1 `shit-hole-research`、R2 `shit-hole-research-raw`，以及工作日北京时间16:20的定时触发器。D1业务表已实查存在；`TOP369_API_KEY` 已获用户许可并仅保存在 Cloudflare Secret 中。**当前尚无真实采集运行记录，联网源响应、覆盖率和端到端HTTP仍未验收**。本仓库不保存账号密钥；其余查询认证密钥未配置，管理员REST路由默认关闭。
 
 本目录是独立逻辑B的**云端采集与只读查询原型**。生产运行不依赖本地电脑、GitHub Actions 或任何其他交易项目；仅允许在开发环境执行离线测试与首次部署命令。
 
@@ -50,7 +54,7 @@ curl -fsS -H 'Authorization: Bearer YOUR_READ_TOKEN' \
   'https://YOUR-WORKER.workers.dev/api/v1/market/quotes?date=2026-11-20&asset=A%E8%82%A1&limit=100'
 ```
 
-返回值中务必检查 `status`、`assets`、`warnings`、`errors_sample` 与 `universe_verified`。不能因为 HTTP 200 就认为市场行情验收通过。当前尚未部署到用户 Cloudflare 账号，也未从 Cloudflare 真实抓取任何新的市场数据。
+返回值中务必检查 `status`、`assets`、`warnings`、`errors_sample` 与 `universe_verified`。不能因为 HTTP 200 就认为市场行情验收通过。Worker及存储已部署到用户指定Cloudflare账户，但尚无真实行情抓取的运行记录；等待定时任务与业务源验收。
 
 ## 后续迭代清单
 
