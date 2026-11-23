@@ -263,11 +263,17 @@ export default {
   },
   async scheduled(event, env, ctx) {
     // Incremental collection and bounded historical backfill are separate Crons.
-    if (event.cron === '*/5 * * * *') {
+    // Accept the previous schedule during Cloudflare Cron propagation, so
+    // events already queued under the old trigger cannot become daily runs.
+    if (event.cron === '*/5 * * * *' || event.cron === '*/15 * * * *') {
       ctx.waitUntil((async () => {
         const result = await runBackfill(env, collectDay);
         console.log(JSON.stringify({ event: 'logic_b_backfill', ...result }));
       })());
+      return;
+    }
+    if (event.cron !== '20 8 * * 1-5') {
+      console.log(JSON.stringify({ event: 'logic_b_unknown_cron', cron: event.cron }));
       return;
     }
     // UTC 08:20 on weekdays = China 16:20, NOT a verified trading-day calendar.
