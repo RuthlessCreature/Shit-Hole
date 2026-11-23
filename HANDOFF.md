@@ -2,6 +2,9 @@
 
 ## 2026-11-23 云端运行方案增补（优先阅读）
 
+**最新线上验收（北京时间15:47—15:55）：** 已在正式 `workers.dev` 域名实测 `/health` 返回 `online`；已开启并回查生产 Worker 的持久化日志及追踪，确认 D1/R2/369 Secret 绑定仍存在。D1 当时 `market_runs/market_quotes/source_probes` 全为零，原因是每日16:20的首次Cron尚未到点；**请勿将其解读为供应商失败，也不要声称市场数据可用**。详见 `cloudflare/README.md`。
+
+
 用户已经明确：有 **Cloudflare Workers Paid**，逻辑B生产系统要**完全云端无人值守**，不使用本地电脑采集，也不默认依赖 GitHub Actions。此前文档提到的“本地 Codex”只是工程开发和历史脚本迁移的上下文，不再是生产运行方案。整个项目必须与其他交易系统及其 Cloudflare 项目隔离，不自动向用户账户部署。
 
 新增 [`cloudflare/README.md`](cloudflare/README.md)：Paid Worker 直接定时触发、369日K鉴权抓取、D1逐证券入库、R2保留原始响应、实时保留来源审计、只读REST接口和管理员探针。以北京时间16:20触发工作日抓取，但周一至周五不是完整交易日历。**Worker、D1、R2、Cron已在用户指定Cloudflare账户实际部署；369密钥仅在Cloudflare Secret中；尚未出现已验证市场采集记录。**
