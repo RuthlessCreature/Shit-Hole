@@ -1,27 +1,16 @@
-# HANDOFF — 本地 Codex 接手指令（2026-11-19）
-
-## 2026-11-23 16:07 云端状态台与历史回填最新进度
-
-- 公开只读、无敏感数据的[Shit-Hole状态控制台](https://shit-hole-logic-b.nostalgia-ho.workers.dev/) 已在独立Worker上线并经真实浏览器验证；每30秒读取 `/api/v1/public/overview`，展示今日行情、历史回填进度、最近任务、源探针。正式监控页面与REST原型共用本Worker，不依赖本地运行环境。
-- D1 `0002_backfill.sql` 已在生产迁移，持久表 `backfill_control/backfill_days` 已核实，配置范围 `2020-01-01` 至 `2026-11-20`，先试抓3个2020年实际交易日。新增每15分钟一个历史Cron；原增量Cron北京时间16:20不变。2026-11-23 16:07历史尚无真实抓取结果，**已运行定时调度不等于历史数据已补完**。
-- 历史行情原则是R2全量保存原始+归一化对象，D1索引审计和最近45自然日热行情，避免10GB单库硬限制；数据依然只来自369，不得宣称独立全市场对账完成。执行和验收SQL见 [`docs/HISTORICAL_BACKFILL.md`](docs/HISTORICAL_BACKFILL.md)。
-- 已运行19项Worker Node+SQLite集成测试并全部通过；这些是离线契约证据，不代替2020年源响应与R2对象实际验收。生产Script绑定已再次核实包括 `TOP369_API_KEY`，严格继承密钥，没有将其写入仓库。
-
+# HANDOFF — 逻辑B工程接手指令（更新至2026-11-23）
 
 ## 2026-11-23 云端运行方案增补（优先阅读）
 
-**最新线上验收（北京时间15:47—15:55）：** 已在正式 `workers.dev` 域名实测 `/health` 返回 `online`；已开启并回查生产 Worker 的持久化日志及追踪，确认 D1/R2/369 Secret 绑定仍存在。D1 当时 `market_runs/market_quotes/source_probes` 全为零，原因是每日16:20的首次Cron尚未到点；**请勿将其解读为供应商失败，也不要声称市场数据可用**。详见 `cloudflare/README.md`。
+用户已经明确：有 **Cloudflare Workers Paid**，逻辑B生产系统要**完全云端无人值守**，不使用本地电脑采集，也不默认依赖 GitHub Actions。此前文档提到的“本地 Codex”只是工程开发和历史脚本迁移的上下文，不再是生产运行方案。整个项目必须与其他交易系统及其 Cloudflare 项目隔离。**2026-11-23的独立Worker部署已经得到用户授权并实际完成；后续其他环境/项目的部署仍需单独授权。**
 
+已上线 [`cloudflare/README.md`](cloudflare/README.md) 所述独立系统：Paid Worker 直接定时触发、369日K鉴权抓取、D1热数据/任务审计、R2冷历史、公开汇总状态网页和未启用Secret的受保护REST端点。**公网面板：https://shit-hole-logic-b.nostalgia-ho.workers.dev/** 。当日采集北京时间16:20，历史回填每15分钟一个真实交易日，所有状态来自生产D1。页面已通过公网浏览器验收。
 
-用户已经明确：有 **Cloudflare Workers Paid**，逻辑B生产系统要**完全云端无人值守**，不使用本地电脑采集，也不默认依赖 GitHub Actions。此前文档提到的“本地 Codex”只是工程开发和历史脚本迁移的上下文，不再是生产运行方案。整个项目必须与其他交易系统及其 Cloudflare 项目隔离，不自动向用户账户部署。
+真实状态：Cloudflare 369源Secret已生效、历史交易日历及至少一个历史交易日已实抓。**2026-11-23 16:15**回填日历1668日，2020-01-02历史行情5346条已归档R2；**16:20**当日任务采集9342条并全部入D1。2020-01-02历史转债池严重欠缺：粗分10条中9条是深市回购代码；源不能称为股债全覆盖。现有 `cloudflare/src/core.mjs` 已修复后续分类，旧R2归档须另行重标准化。上交所、深交所、巨潮仍只有首页探针（巨潮当次HTTP 446），不能视为免费业务数据适配器成功。MCP、云端交易卡、历史ST、财报、转债条款和信用债全量数据仍未完成。
 
-新增 [`cloudflare/README.md`](cloudflare/README.md)：Paid Worker 直接定时触发、369日K鉴权抓取、D1逐证券入库、R2保留原始响应、实时保留来源审计、只读REST接口和管理员探针。以北京时间16:20触发工作日抓取，但周一至周五不是完整交易日历。**Worker、D1、R2、Cron已在用户指定Cloudflare账户实际部署；369密钥仅在Cloudflare Secret中；尚未出现已验证市场采集记录。**
+本轮离线验收：`node --test cloudflare/tests/*.test.mjs` **20项通过**；原有 Python 10项为此前执行结果，本轮未复测。**Cloudflare生产D1迁移 `0001`、`0002`、Worker脚本与两条Cron均已完成，R2历史实物已读取核验。**
 
-真实状态：Cloudflare适配器目前只有 **369（需用户在CF配置合法可用的 `TOP369_API_KEY`）**；上交所、深交所、巨潮仅有首页连通性探针，不能视为免费数据适配器成功。MCP、交易卡云端计算、历史ST、财报、转债条款和信用债全量数据仍未完成。
-
-本轮离线验收：`node --test cloudflare/tests/*.test.mjs` 11项通过；`python -m unittest discover -s tests -v` 原有10项通过。**Cloudflare API已上传Worker并成功迁移D1，但尚未完成业务源真实采集、覆盖率与外部HTTP实测。**
-
-管理员下一步：检查已启用的北京时间16:20 Cron 产生的 `market_runs`、`source_probes`、R2原始快照，核验 `PROVISIONAL`/`PARTIAL`/`BLOCKED` 与来源许可。`ADMIN_TOKEN`/`READ_TOKEN` 尚未配置，私有查询REST保持关闭；ChatGPT可先经已授权Cloudflare插件查询D1，标准MCP仍待实现。
+管理员下一步：**不要重复创建已有D1/R2和Worker**。先观察3次历史试抓后自动暂停的审计结果，核实2020行情与覆盖差异，再决定延长`attempt_limit`；必须解决历史可转债主表/行情缺口。后续如需启用受保护REST，应由用户独立配置 `READ_TOKEN`、`ADMIN_TOKEN`，不要复用369上游Secret，也不得在聊天/GitHub泄漏密钥。完整技术记录见 [`docs/HISTORICAL_BACKFILL.md`](docs/HISTORICAL_BACKFILL.md)。
 
 后续核心优先级仍是：官方/免费业务数据源真实采集与独立证券池覆盖核验 → 20日历史和披露时点 → 云端扫描研究卡 → 只读MCP连接。不得把“Cloudflare能访问首页”冒充“已经覆盖全市场”。
 
@@ -36,7 +25,7 @@
 3. **真实可兑现价值区间**：现金流、资产/负债、完全稀释权益价值，或债务偿付/清算回收率及时间。
 4. **纠错催化剂/反证/时间成本**：什么事件导致重估；什么事实推翻假设。
 
-**项目边界：只做本仓库独立采集与研究，绝不连接任何其他已有交易系统、网站、持仓、数据库、Cloudflare Worker。** 不改动外部项目，不自动部署。
+**项目边界：只做本仓库独立采集与研究，绝不连接任何其他已有交易系统、网站、持仓、数据库、Cloudflare Worker。** 不改动外部项目；生产版本已经按本次授权部署，后续独立变更仍需在同一系统范围内实施。
 
 ## 1. 上一轮已经真的做成的东西（不要重做）
 
