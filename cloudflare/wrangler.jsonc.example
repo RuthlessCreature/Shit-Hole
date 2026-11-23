@@ -22,5 +22,10 @@
     "MIN_A_COUNT": "5000",
     "MIN_CB_COUNT": "200"
   },
-  "observability": { "enabled": true }
+  "observability": {
+    "enabled": true,
+    "redact_query_string": true,
+    "logs": { "enabled": true, "invocation_logs": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 }
+  }
 }
