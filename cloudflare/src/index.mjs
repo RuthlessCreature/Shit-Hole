@@ -89,7 +89,8 @@ export async function collectDay(env, day, trigger = 'manual') {
     const manifest = {
       schema_version: 1, run_id: id, source: PROVIDER, underlying_origin: '369.top',
       trade_date: day, observed_at: startedAt, retrieved_at: finishedAt,
-      trigger, source_endpoint: '/api/a/stock/day_kline', raw_sha256: rawHash,
+      trigger, source_url: `https://api.369.top/api/a/stock/day_kline?date=${day}`,
+      raw_sha256: rawHash, price_adjustment: 'UNVERIFIED', quote_units: 'UNVERIFIED',
       ...audit, source_license: 'CHECK_PROVIDER_TERMS_BEFORE_REDISTRIBUTION',
       first_public_at: null, historical_ST_verified: false,
       financial_valuation_verified: false,
@@ -234,6 +235,13 @@ export default {
     ctx.waitUntil((async () => {
       const result = await collectDay(env, chinaToday(), `cron:${event.cron}`);
       console.log('logic_b_market_run', JSON.stringify({ id: result.run_id, date: result.trade_date, status: result.status }));
+      // Probe failures must not hide the original collection status.
+      try {
+        const probes = await probeSources(env);
+        console.log('logic_b_source_probe', JSON.stringify(probes.results.map(x => ({ source: x.source, status: x.status }))));
+      } catch (error) {
+        console.log('logic_b_source_probe_failed', safeError(error));
+      }
     })());
   },
 };
