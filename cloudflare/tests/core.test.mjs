@@ -35,6 +35,8 @@ test('stocks, bonds, ETFs, and other instruments are retained separately', () =>
     'A股': 3, '可转债候选': 2, 'ETF/基金候选': 1, '其他证券': 1,
   });
   assert.equal(assetOf('sh110001'), '可转债候选');
+  assert.equal(assetOf('sz128044'), '可转债候选');
+  assert.equal(assetOf('sz131810'), '其他证券'); // bond repo, not convertible
 });
 
 test('missing prices and zero-volume valid securities are preserved', () => {
