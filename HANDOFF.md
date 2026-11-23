@@ -1,5 +1,13 @@
 # HANDOFF — 本地 Codex 接手指令（2026-11-19）
 
+## 2026-11-23 16:07 云端状态台与历史回填最新进度
+
+- 公开只读、无敏感数据的[Shit-Hole状态控制台](https://shit-hole-logic-b.nostalgia-ho.workers.dev/) 已在独立Worker上线并经真实浏览器验证；每30秒读取 `/api/v1/public/overview`，展示今日行情、历史回填进度、最近任务、源探针。正式监控页面与REST原型共用本Worker，不依赖本地运行环境。
+- D1 `0002_backfill.sql` 已在生产迁移，持久表 `backfill_control/backfill_days` 已核实，配置范围 `2020-01-01` 至 `2026-11-20`，先试抓3个2020年实际交易日。新增每15分钟一个历史Cron；原增量Cron北京时间16:20不变。2026-11-23 16:07历史尚无真实抓取结果，**已运行定时调度不等于历史数据已补完**。
+- 历史行情原则是R2全量保存原始+归一化对象，D1索引审计和最近45自然日热行情，避免10GB单库硬限制；数据依然只来自369，不得宣称独立全市场对账完成。执行和验收SQL见 [`docs/HISTORICAL_BACKFILL.md`](docs/HISTORICAL_BACKFILL.md)。
+- 已运行19项Worker Node+SQLite集成测试并全部通过；这些是离线契约证据，不代替2020年源响应与R2对象实际验收。生产Script绑定已再次核实包括 `TOP369_API_KEY`，严格继承密钥，没有将其写入仓库。
+
+
 ## 2026-11-23 云端运行方案增补（优先阅读）
 
 **最新线上验收（北京时间15:47—15:55）：** 已在正式 `workers.dev` 域名实测 `/health` 返回 `online`；已开启并回查生产 Worker 的持久化日志及追踪，确认 D1/R2/369 Secret 绑定仍存在。D1 当时 `market_runs/market_quotes/source_probes` 全为零，原因是每日16:20的首次Cron尚未到点；**请勿将其解读为供应商失败，也不要声称市场数据可用**。详见 `cloudflare/README.md`。
