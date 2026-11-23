@@ -104,6 +104,19 @@ test('collector saves raw, normalized and manifest objects, plus auditable run',
   } finally { globalThis.fetch = oldFetch; }
 });
 
+test('cold historical collection keeps all rows in R2 without filling D1 quotes', async () => {
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: [record('sh600567')] }));
+  try {
+    const { env, state } = fakeEnv();
+    const result = await collectDay(env, '2026-11-20', 'cron:history', { storeQuotes: false });
+    assert.equal(result.quote_storage, 'R2_ONLY');
+    assert.equal(result.normalized_rows, 1);
+    assert.equal(state.objects.size, 3);
+    assert.equal(state.writes.filter(x => x.sql.startsWith('INSERT INTO market_quotes')).length, 0);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
 test('429 stops without any bypass and persists a BLOCKED run', async () => {
   const oldFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response('rate limited', { status: 429 });
