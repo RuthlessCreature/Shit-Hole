@@ -34,6 +34,13 @@
 - 429不反复冲击上游：将当前日期保留为待抓并在下一自然日恢复；401/403鉴权/禁止访问则暂停并公开报错。普通网络或服务端错误同日期最多3次重试，不能静默漏日。
 - 历史回填无需5分钟Cron；保留的Cron只负责正常工作日北京时间16:20增量采集。Queue执行速度由供应商真实响应、D1/R2持久化与Cloudflare投递延迟决定，不再宣称固定N天内必然补齐。
 
+### 生产接力实测（2026-11-23北京时间17:21）
+
+- Cloudflare Queue `shit-hole-history-backfill` 已创建；同一Worker挂载生产者绑定 `BACKFILL_QUEUE`，并注册 `batch_size=1,max_concurrency=1` 的消费者。定时列表已核实**仅剩工作日16:20当日行情**，没有5分钟历史Cron。
+- 17:21:14 的2020-01-13日线已入R2/D1，17:21:20 的2020-01-14已开始运行；随后约30秒内已存档天数由8增长到19，**不是固定五分钟等待**。
+- 抽样重新读取R2内 `2020-02-05/provider.json` 实物：实际有**5383条**，与该日D1审计 `normalized_rows=5383` 及原始响应 `snapshot_date=2020-02-05` 一致。此处仅证明当前批次的源归档一致，绝不代表独立全市场对账完成。
+- 17:21:47生产状态 `RUNNING,enabled=1,attempts=19,STORED_UNVERIFIED=19,PENDING=1649,last_error=NULL`；启动后没有访问失败。任何后续时点以D1实时状态为准。
+
 ## 旧Cron自动回填方案（已废止，留作审计）
 
 - 新增 `cloudflare/migrations/0002_backfill.sql`，表为 `backfill_control` 和 `backfill_days`；先迁移，再发布新版Worker。
