@@ -1,5 +1,6 @@
 import { auditSnapshot, chinaToday, normalizeSnapshot, providerRows, requireTradingDate, safeError } from './core.mjs';
 import { runBackfill } from './backfill.mjs';
+import { DASHBOARD_HTML, DASHBOARD_CSS, DASHBOARD_JS, readPublicOverview } from './dashboard.mjs';
 
 const PROVIDER = '369_day_kline';
 const PROBE_TARGETS = [
@@ -215,8 +216,28 @@ export default {
       return reply({ service: 'logic-b-cloudflare', status: 'online', trading: 'manual_only',
         data_source_status: 'CHECK_/api/v1/market/status' });
     }
+    if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/dashboard')) {
+      return new Response(DASHBOARD_HTML, { headers: {
+        'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer',
+        'content-security-policy': "default-src 'none'; connect-src 'self'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      } });
+    }
+    if (request.method === 'GET' && ['/assets/dashboard.css', '/assets/dashboard.js'].includes(url.pathname)) {
+      const css = url.pathname.endsWith('.css');
+      return new Response(css ? DASHBOARD_CSS : DASHBOARD_JS, { headers: {
+        'content-type': css ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8',
+        'cache-control': 'public, max-age=300', 'x-content-type-options': 'nosniff',
+      } });
+    }
+    if (request.method === 'GET' && url.pathname === '/favicon.ico') {
+      return new Response(null, { status: 204 });
+    }
     try {
       requireBindings(env);
+      if (url.pathname === '/api/v1/public/overview' && request.method === 'GET') {
+        return reply(await readPublicOverview(env));
+      }
       if (url.pathname === '/api/v1/admin/probe' && request.method === 'POST') {
         if (!authorized(request, env.ADMIN_TOKEN)) return reply({ error: 'UNAUTHORIZED' }, 401);
         return reply(await probeSources(env));
