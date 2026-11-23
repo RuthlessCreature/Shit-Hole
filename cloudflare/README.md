@@ -2,7 +2,14 @@
 
 ## 2026-11-23 实际部署记录
 
-经用户指定，已在独立的 Cloudflare 个人账户中创建并上传：Worker `shit-hole-logic-b`、D1 `shit-hole-research`、R2 `shit-hole-research-raw`，以及工作日北京时间16:20的定时触发器。D1业务表已实查存在；`TOP369_API_KEY` 已获用户许可并仅保存在 Cloudflare Secret 中。**当前尚无真实采集运行记录，联网源响应、覆盖率和端到端HTTP仍未验收**。本仓库不保存账号密钥；其余查询认证密钥未配置，管理员REST路由默认关闭。
+## 2026-11-23 15:47—15:55（北京时间）线上验收增补
+
+- 已通过真实浏览器访问 [`https://shit-hole-logic-b.nostalgia-ho.workers.dev/health`](https://shit-hole-logic-b.nostalgia-ho.workers.dev/health)；返回 `service=logic-b-cloudflare`、`status=online`、`trading=manual_only`。因此 **Worker 公网 HTTP 健康接口已验收**，但不等于业务源数据已采集。
+- 已在 Cloudflare 生产 Worker 开启并回读验证 `observability.enabled=true`、`logs.enabled=true`、`invocation_logs=true`、`traces.enabled=true`，日志采样 100%、追踪采样 10%；同时开启请求查询参数脱敏。复查绑定 `DB`、`RAW`、`TOP369_API_KEY` 和两项行情数量配置均未丢失。
+- 2026-11-23 15:47 北京时间，D1 查询实测 `market_runs=0`、`market_quotes=0`、`source_probes=0`。这属于**首次16:20定时任务尚未触发**，不能归因为供应商故障，也不能宣称已采集。
+- 下一次验收需在首次Cron之后，检查 `market_runs.status/error/audit_json`，按 `run_id` 统计 `market_quotes`，验证 `source_probes`，并与独立证券主数据比对。369真实接口的 Cloudflare 出口可达性、额度、字段口径尚未证实。
+
+经用户指定，已在独立的 Cloudflare 个人账户中创建并上传：Worker `shit-hole-logic-b`、D1 `shit-hole-research`、R2 `shit-hole-research-raw`，以及工作日北京时间16:20的定时触发器。D1业务表已实查存在；`TOP369_API_KEY` 已获用户许可并仅保存在 Cloudflare Secret 中。**当前尚无真实采集运行记录，联网源响应与业务覆盖率仍未验收；仅公网健康接口已验收**。本仓库不保存账号密钥；其余查询认证密钥未配置，管理员REST路由默认关闭。
 
 本目录是独立逻辑B的**云端采集与只读查询原型**。生产运行不依赖本地电脑、GitHub Actions 或任何其他交易项目；仅允许在开发环境执行离线测试与首次部署命令。
 
@@ -54,7 +61,7 @@ curl -fsS -H 'Authorization: Bearer YOUR_READ_TOKEN' \
   'https://YOUR-WORKER.workers.dev/api/v1/market/quotes?date=2026-11-20&asset=A%E8%82%A1&limit=100'
 ```
 
-返回值中务必检查 `status`、`assets`、`warnings`、`errors_sample` 与 `universe_verified`。不能因为 HTTP 200 就认为市场行情验收通过。Worker及存储已部署到用户指定Cloudflare账户，但尚无真实行情抓取的运行记录；等待定时任务与业务源验收。
+返回值中务必检查 `status`、`assets`、`warnings`、`errors_sample` 与 `universe_verified`。不能因为 HTTP 200 就认为市场行情验收通过。Worker及存储已部署到用户指定Cloudflare账户，但截至北京时间2026-11-23 15:47，尚无真实行情抓取的运行记录；等待16:20首次定时任务及业务源验收。
 
 ## 后续迭代清单
 
