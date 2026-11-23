@@ -5,7 +5,7 @@ export const DASHBOARD_HTML = `<!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark"><title>Shit-Hole 逻辑B · 数据控制台</title>
 <link rel="stylesheet" href="/assets/dashboard.css">
-<script src="/assets/dashboard.js" defer></script>
+<script src="/assets/dashboard.js?v=20261123b" defer></script>
 </head><body><div class="shell">
   <header class="masthead">
     <div><p class="eyebrow">SHIT-HOLE / LOGIC B</p><h1>市场错价研究 · 数据控制台</h1>
