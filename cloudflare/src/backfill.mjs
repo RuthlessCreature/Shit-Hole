@@ -120,7 +120,7 @@ export async function runBackfill(env, collectDay) {
         result.error ?? null, new Date().toISOString()).run();
     return { status: result.status, trade_date: date, run_id: result.run_id,
       quote_storage: result.quote_storage ?? null, retry_scheduled: retry,
-      attempts, attempt_limit: control.attempt_limit };
+      error: result.error ?? null, attempts, attempt_limit: control.attempt_limit };
   } catch (error) {
     const message = safeError(error);
     await env.DB.prepare(`UPDATE backfill_control SET enabled=0,state='BLOCKED_OR_FAILED',
