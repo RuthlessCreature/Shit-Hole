@@ -10,7 +10,7 @@
 - 日增量Cron更新为`20 10 * * 1-5`（UTC，北京时间**18:20**）；历史Queue成功归档一日就立刻接下一日。369的450次/日预算不再拦截BaoStock；BaoStock被服务商限流/封禁则停机并审计。
 - **此源只补A股日线，不是转债/信用债万能数据源。** 369旧行情保留且可人工切回，但**自动故障切换、双源逐码对账、独立转债每日采集尚未实现**；切换后的新A股日更不保证原369转债候选同步更新。
 - 历史队列原369已存259天不重抓、不覆盖；新主源续接2021-01-26。交易日历仍沿用D1已有369返回的2020-01-01至2026-11-20的1,668个交易日；全新空库BaoStock日历种子尚待开发。
-- 离线`node --test cloudflare/tests/*.test.mjs` **33/33通过**，Cloudflare的动态`cloudflare:sockets`加载亦已实测。本地副本缺少Git `.git`元数据，**Cloudflare已部署不等于GitHub已提交新源码**，接手者须同步远端。
+- 离线`node --test cloudflare/tests/*.test.mjs` **33/33通过**，Cloudflare的动态`cloudflare:sockets`加载亦已实测。源码与文档已通过GitHub连接提交至现有PR #1分支`feature/logic-b-research-startup-20261120`，首个BaoStock切源提交`4e9efba2264afe1c4bbe498bd28cbae20b2efca1`。本地暂存副本缺少`.git`元数据，不影响远端提交。
 
 ## 2026-11-23 云端运行方案增补（优先阅读）
 

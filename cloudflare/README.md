@@ -84,4 +84,4 @@ node --test cloudflare/tests/*.test.mjs  # 从仓库根目录执行
 python -m unittest discover -s tests -v
 ```
 
-生产D1迁移 `0001`、`0002` 均已执行；Cloudflare API模块上传、Cron调度与真实数据落库已验证。Queue行为使用离线测试与生产消费记录分别验证。**BaoStock新增部分离线测试现为33项通过**，且已进行Cloudflare TCP真实抓取、动态Socket导入验证，但并非独立全市场覆盖验收。**本次BaoStock源码已部署Cloudflare，但此工作区副本没有Git `.git`元数据，不能宣称最新修改已提交GitHub。**后续应把源码同步到仓库，并做正式Workers环境回归测试。
+生产D1迁移 `0001`、`0002` 均已执行；Cloudflare API模块上传、Cron调度与真实数据落库已验证。Queue行为使用离线测试与生产消费记录分别验证。**BaoStock新增部分离线测试现为33项通过**，且已进行Cloudflare TCP真实抓取、动态Socket导入验证，但并非独立全市场覆盖验收。**BaoStock源码及文档已同步到GitHub现有PR #1分支，首个切源提交`4e9efba2264afe1c4bbe498bd28cbae20b2efca1`。**本地暂存副本缺少`.git`元数据；后续可直接从远程GitHub克隆并做Workers环境回归测试。
