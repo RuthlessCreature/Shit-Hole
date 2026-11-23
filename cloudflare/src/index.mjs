@@ -227,7 +227,7 @@ export default {
       const css = url.pathname.endsWith('.css');
       return new Response(css ? DASHBOARD_CSS : DASHBOARD_JS, { headers: {
         'content-type': css ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8',
-        'cache-control': 'public, max-age=300', 'x-content-type-options': 'nosniff',
+        'cache-control': 'no-cache', 'x-content-type-options': 'nosniff',
       } });
     }
     if (request.method === 'GET' && url.pathname === '/favicon.ico') {
