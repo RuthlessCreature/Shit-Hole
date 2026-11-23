@@ -39,7 +39,10 @@ export function assetOf(symbol) {
   if ((market === 'sh' && /^(60|68)/.test(code)) ||
       (market === 'sz' && /^(00|30)/.test(code)) ||
       (market === 'bj' && /^(92|83|87|43)/.test(code))) return 'A股';
-  if (/^(11|12|13)/.test(code)) return '可转债候选';
+  // The broad 13xxxx prefix includes Shenzhen bond repos (e.g. sz131810),
+  // which must not be counted as convertible bonds in coverage reports.
+  if ((market === 'sh' && /^(110|111|113|118)/.test(code)) ||
+      (market === 'sz' && /^(123|125|126|127|128|129)/.test(code))) return '可转债候选';
   if (/^(51|15|56|58)/.test(code)) return 'ETF/基金候选';
   return '其他证券';
 }
