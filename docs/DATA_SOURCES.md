@@ -2,18 +2,20 @@
 
 更新时间：2026-11-23。此文件区分**文档确认**、**本项目真实验证**和**待测试**。数据免费获取不等于数据可公开再分发。优先使用公开披露和免费软件接口；付费方案仅在证实免费覆盖缺口后考虑。
 
+**最新实测：**Cloudflare Worker直接通过TCP从BaoStock单日全A股接口取回**2020-01-02共3,761条**，压缩解码成功；同日369混合证券5,346条，其中本项目粗代码分类A股3,648条。2026-11-23已将BaoStock部署为历史回填及日更A股主源，旧369历史数据保留，**两源差异尚需以交易所证券主表复核**。下表中旧日线数量均为切源前历史执行记录。详细过程见[`HISTORICAL_BACKFILL.md`](HISTORICAL_BACKFILL.md)。
+
 ## 一、分层与主次关系
 
 | 数据层 | 免费优先主源 | 免费辅助/交叉核验 | 已有授权源/可选付费 | 当前真实状态 |
 |---|---|---|---|---|
 | A股交易日历 | BaoStock `query_trade_dates`；交易所日历 | AKShare交易日历 | 369 `/a/market/trade_calendar` 免费档 | **云端已抓2020-01-01至2026-11-20实际交易日1668天**；旧本地脚本仍待替换工作日近似 |
-| 历史A股OHLCV | BaoStock `query_history_k_data_plus`、`query_daily_history_k_AStock` | AKShare `stock_zh_a_hist`（东方财富等） | 369 `/a/stock/day_kline?date=` 免费授权用例 | **云端2020-01-02/03/06三天实抓共16047条**；已授权全量历史自动回填，2026-11-23当日9342条进D1 |
+| 历史A股OHLCV | **BaoStock `query_daily_history_k_AStock`（现生产主源）**；`query_history_k_data_plus`（单券后续） | 369已归档历史/人工切回；AKShare `stock_zh_a_hist`（待测） | 369 `/a/stock/day_kline?date=` 免费授权用例 | **BaoStock已在Cloudflare真抓2020-01-02全A股3,761条**；2021-01-26生产入库4,166条，未完成证券主表独立核验 |
 | 证券代码/名称/上市状态 | BaoStock `query_stock_basic`、交易所列表 | AKShare股票列表 | 369 `/a/stock/list`（免费档） | 369实际完成 95/95 页、9,404条；**不是历史名称** |
-| ST/*ST戴帽/摘帽 | 上交所/深交所公告、BaoStock历史名称交叉核对 | AKShare旧名/公告辅助 | 369 `/a/stock/st_list?date=` **基础版**；`name_history` **专业版** | 真实历史ST未取回；当前名称225不能代替 |
+| ST/*ST戴帽/摘帽 | 上交所/深交所公告、BaoStock历史`isST`字段交叉核对 | AKShare旧名/公告辅助 | 369 `/a/stock/st_list?date=` **基础版**；`name_history` **专业版** | BaoStock每日日线源有历史`isST`字段，已写R2；**未与正式公告生效日独立对账**；当前名称225不能代替 |
 | 财务三表/比率 | BaoStock `query_profit_data` / `query_cash_flow_data` / `query_balance_data`（核对版本函数与字段） | AKShare `stock_financial_report_sina`、`stock_balance_sheet_by_report_em`、`stock_profit_sheet_by_report_em`、`stock_cash_flow_sheet_by_report_em` | 369 `/a/stock/financial` **专业版** | 尚未全量采集；关键需披露时点对齐 |
 | 年报/临时公告/监管函/重整 | **巨潮资讯网**、上交所/深交所/北交所正式信息披露 | AKShare `stock_notice_report`（其底层为东财，需逐条复核） | 商业公告/司法数据库 | 尚未拉全量；重点取附件PDF和正式发布日期 |
 | 股本/质押/回购/解禁 | 交易所、巨潮公告 | AKShare相关公开接口 | 369 `/a/stock/f10`、`dividend`、`restricted_release` 等专业版 | 未采集 |
-| 可转债OHLCV | AKShare `bond_zh_hs_spot` / `bond_zh_hs_daily`（新浪源，逐券日线） | 交易所成交信息；转债募集说明书 | 369日K当前含256只候选 | **2020历史单日369截面仅见1条有效转债候选，覆盖缺口显著；2026-11-23有256条候选**，须单独补源与对账；未含债底/转股条款完整模型 |
+| 可转债OHLCV | AKShare `bond_zh_hs_spot` / `bond_zh_hs_daily`（新浪源，逐券日线） | 交易所成交信息；转债募集说明书 | 切源前369日K有256只候选 | **BaoStock此接口只涵盖A股，切源后没有独立转债日更**；2020年369日线有效转债候选约1只，需单独建设历史及当日转债行情源 |
 | 沪深公司债/企业债 | **上交所债券列表与信息披露**、**深交所债券市场数据** | AKShare `bond_zh_hs_spot` / `bond_zh_hs_daily`（新浪，分类与覆盖待测） | Wind/Choice/中债估值等需独立授权 | **逐券全覆盖没有完成** |
 | 银行间信用债 / MTN / 短融 | **中国货币网、交易商协会、上海清算所、中债信息网**公开资料 | AKShare个别银行间公开数据（需核验） | 商业估值/成交数据库 | **没有逐券价量与估值全覆盖** |
 | 法院重整/裁判/拍卖 | 法院、全国企业破产重整案件信息网、法定公告 | 巨潮披露的法院裁定原件 | 司法商业数据库 | 案件粒度、可得性与时间戳待核实 |

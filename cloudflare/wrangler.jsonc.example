@@ -5,7 +5,7 @@
   "compatibility_date": "2026-11-23",
   "limits": { "cpu_ms": 300000 },
   "triggers": {
-    "crons": ["20 8 * * 1-5"]
+    "crons": ["20 10 * * 1-5"]
   },
   "queues": {
     "producers": [{ "binding": "BACKFILL_QUEUE", "queue": "shit-hole-history-backfill" }],
@@ -30,6 +30,7 @@
     { "binding": "RAW", "bucket_name": "shit-hole-research-raw" }
   ],
   "vars": {
+    "PRIMARY_MARKET_SOURCE": "baostock",
     "MIN_A_COUNT": "5000",
     "MIN_CB_COUNT": "200"
   },

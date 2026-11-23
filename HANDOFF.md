@@ -1,5 +1,17 @@
 # HANDOFF — 逻辑B工程接手指令（更新至2026-11-23）
 
+## 最新生产切换：BaoStock 免费A股历史全市场日线（2026-11-23）
+
+**本节是当前生效状态；下文369方案保留为历史审计，不再代表当前主源。**
+
+- 独立生产Cloudflare Worker `shit-hole-logic-b`已部署 `cloudflare/src/baostock.mjs`，绑定`PRIMARY_MARKET_SOURCE=baostock`；原`TOP369_API_KEY` Secret、D1、R2和Queue全部保留。BaoStock原生TCP端点为`public-api.baostock.com:10030`，无需本地常驻Python或中间服务器。
+- Cloudflare真实联网测试：BaoStock 0.9.4的消息`98`全A股日线接口、压缩消息`99`解码成功；**2020-01-02共返回3,761条A股**。该日369旧截面混合证券5,346条，其中本项目粗代码分类A股3,648条；两者差异尚未和交易所证券主表独立逐码对账。
+- 原始解压正文（私有R2文本文件）、标准化JSONL和审计manifest按`logic-b/baostock/`前缀保存；D1来源`baostock_daily_AStock`。`isST`、`tradestatus`、昨收、部分财务估值比率保留在R2，尚须公告和历史证券主表交叉复核。
+- 日增量Cron更新为`20 10 * * 1-5`（UTC，北京时间**18:20**）；历史Queue成功归档一日就立刻接下一日。369的450次/日预算不再拦截BaoStock；BaoStock被服务商限流/封禁则停机并审计。
+- **此源只补A股日线，不是转债/信用债万能数据源。** 369旧行情保留且可人工切回，但**自动故障切换、双源逐码对账、独立转债每日采集尚未实现**；切换后的新A股日更不保证原369转债候选同步更新。
+- 历史队列原369已存259天不重抓、不覆盖；新主源续接2021-01-26。交易日历仍沿用D1已有369返回的2020-01-01至2026-11-20的1,668个交易日；全新空库BaoStock日历种子尚待开发。
+- 离线`node --test cloudflare/tests/*.test.mjs` **33/33通过**，Cloudflare的动态`cloudflare:sockets`加载亦已实测。本地副本缺少Git `.git`元数据，**Cloudflare已部署不等于GitHub已提交新源码**，接手者须同步远端。
+
 ## 2026-11-23 云端运行方案增补（优先阅读）
 
 用户已经明确：有 **Cloudflare Workers Paid**，逻辑B生产系统要**完全云端无人值守**，不使用本地电脑采集，也不默认依赖 GitHub Actions。此前文档提到的“本地 Codex”只是工程开发和历史脚本迁移的上下文，不再是生产运行方案。整个项目必须与其他交易系统及其 Cloudflare 项目隔离。**2026-11-23的独立Worker部署已经得到用户授权并实际完成；后续其他环境/项目的部署仍需单独授权。**

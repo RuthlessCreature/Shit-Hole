@@ -79,6 +79,24 @@ test('queue defers until next China day after reaching source request budget', a
   } finally { sqlite.close(); }
 });
 
+test('BaoStock source is not blocked by unrelated 369 daily quota', async () => {
+  const { sqlite, env, queued } = envWithDays(['2020-01-07']);
+  env.PRIMARY_MARKET_SOURCE = 'baostock';
+  const now = new Date('2026-11-23T08:00:00Z');
+  const insert = sqlite.prepare('INSERT INTO market_runs(id,trade_date,source,started_at,status) VALUES(?,?,?,?,?)');
+  for (let n = 0; n < MAX_CHINA_DAY_CALLS; n++) {
+    insert.run('mock-'+n, '2026-11-23', '369_day_kline', now.toISOString(), 'PROVISIONAL');
+  }
+  try {
+    const result = await processQueueBackfill(env, async () =>
+      ({ status: 'PROVISIONAL', run_id: 'baostock-day' }), now);
+    assert.equal(result.status, 'PROVISIONAL');
+    assert.equal(result.next_queued, true);
+    assert.equal(queued.length, 1);
+    assert.equal(queued[0].options, undefined);
+  } finally { sqlite.close(); }
+});
+
 test('HTTP 429 pauses source calls until next day but keeps the blocked trading date pending', async () => {
   const { sqlite, env, queued } = envWithDays(['2020-01-07']);
   try {

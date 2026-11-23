@@ -47,7 +47,7 @@ export async function processQueueBackfill(env, collectDay, now = new Date()) {
     WHERE started_at>=? AND started_at<? AND source='369_day_kline'`)
     .bind(quota.start, quota.end).first();
   const callsToday = Number(usage?.n || 0);
-  if (callsToday >= MAX_CHINA_DAY_CALLS) {
+  if (env.PRIMARY_MARKET_SOURCE !== 'baostock' && callsToday >= MAX_CHINA_DAY_CALLS) {
     return { ...(await waitForQuota(env, now, 'DAILY_REQUEST_BUDGET')), calls_today: callsToday };
   }
 

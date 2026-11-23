@@ -1,10 +1,12 @@
 # Cloudflare-only 采集基础设施（Paid Workers）
 
+**最新生效状态（2026-11-23）：**A股日线主源已切换为**BaoStock免费全A股单日接口**。Cloudflare Worker直接经TCP10030访问并解压，不依赖本地Python或转发服务器。历史Queue仍一日存完接下一日，旧369历史、密钥、D1和R2没有删除；日线Cron调到UTC10:20（北京时间18:20）。2020-01-02云端实抓3,761条，2021-01-26生产回填4,166条，均尚未独立官方证券池核验。**BaoStock该接口不含转债和信用债；自动故障回切及独立债券日更尚未实现。**下方关于369主源的旧流程是历史部署记录，见[`HISTORICAL_BACKFILL.md`](../docs/HISTORICAL_BACKFILL.md)最新章节。
+
 本目录是独立逻辑B的**已上线云端采集与只读状态系统**。生产运行不依赖本地电脑、GitHub Actions 或任何其他交易项目；开发环境仅用于代码维护与离线测试。
 
 **生产地址：** https://shit-hole-logic-b.nostalgia-ho.workers.dev/ （`/dashboard` 同页；手机/桌面自适应）。页面每30秒读取公开聚合只读接口 `/api/v1/public/overview`，不暴露授权密钥和R2明细。已通过公网浏览器查看。
 
-**生产基础设施：** Worker `shit-hole-logic-b`、D1 `shit-hole-research`、R2 `shit-hole-research-raw`，均处于用户授权的独立Cloudflare账号。`TOP369_API_KEY` 已以Secret绑定并实际通过鉴权。历史回填使用独立Queue `shit-hole-history-backfill`，当天行情仍由Cron `20 8 * * 1-5` 触发。最新状态证据见 [`docs/HISTORICAL_BACKFILL.md`](../docs/HISTORICAL_BACKFILL.md)。
+**生产基础设施：** Worker `shit-hole-logic-b`、D1 `shit-hole-research`、R2 `shit-hole-research-raw`，均处于用户授权的独立Cloudflare账号。`TOP369_API_KEY` Secret保留；新增变量`PRIMARY_MARKET_SOURCE=baostock`。历史回填使用独立Queue `shit-hole-history-backfill`，当天行情Cron现为 `20 10 * * 1-5`。最新状态证据见 [`docs/HISTORICAL_BACKFILL.md`](../docs/HISTORICAL_BACKFILL.md)。
 
 ## 已实现的边界
 
@@ -82,4 +84,4 @@ node --test cloudflare/tests/*.test.mjs  # 从仓库根目录执行
 python -m unittest discover -s tests -v
 ```
 
-生产D1迁移 `0001`、`0002` 均已执行；Cloudflare API模块上传、Cron调度与真实数据落库已验证。Queuing行为使用离线测试与生产消费记录分别验证。离线测试目前27项通过，但这不等于证券主数据独立覆盖验收。GitHub PR分支已有最新源码；后续本地Wrangler复现仍需跑目标Workers运行时测试。
+生产D1迁移 `0001`、`0002` 均已执行；Cloudflare API模块上传、Cron调度与真实数据落库已验证。Queue行为使用离线测试与生产消费记录分别验证。**BaoStock新增部分离线测试现为33项通过**，且已进行Cloudflare TCP真实抓取、动态Socket导入验证，但并非独立全市场覆盖验收。**本次BaoStock源码已部署Cloudflare，但此工作区副本没有Git `.git`元数据，不能宣称最新修改已提交GitHub。**后续应把源码同步到仓库，并做正式Workers环境回归测试。

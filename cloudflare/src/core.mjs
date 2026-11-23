@@ -93,7 +93,17 @@ export function normalizeSnapshot(rows, day) {
     const asset = assetOf(symbol);
     assets[asset] = (assets[asset] || 0) + 1;
     if (numbers.volume === 0) zeroVolume++;
-    valid.push({ symbol, name: String(record.name || '').slice(0, 120), asset, trade_date: day, ...numbers });
+    // Preserve source-specific research fields in R2. D1's hot quotes table
+    // deliberately keeps only its existing OHLCV schema.
+    const extras = {};
+    for (const field of ['preclose', 'pctChg', 'isST', 'tradestatus', 'peTTM', 'pbMRQ', 'psTTM', 'pcfNcfTTM']) {
+      if (!Object.hasOwn(record, field)) continue;
+      const raw = record[field];
+      const converted = raw === null || raw === undefined || raw === '' || raw === '-'
+        ? null : Number(raw);
+      extras[field] = Number.isFinite(converted) ? converted : null;
+    }
+    valid.push({ symbol, name: String(record.name || '').slice(0, 120), asset, trade_date: day, ...numbers, ...extras });
   }
   return { valid, errors, assets, zeroVolume };
 }

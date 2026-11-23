@@ -1,8 +1,18 @@
 import { auditSnapshot, chinaToday, normalizeSnapshot, providerRows, requireTradingDate, safeError } from './core.mjs';
+import { fetchBaostockDay } from './baostock.mjs';
 import { processQueueBackfill } from './queue.mjs';
 import { DASHBOARD_HTML, DASHBOARD_CSS, DASHBOARD_JS, readPublicOverview } from './dashboard.mjs';
 
-const PROVIDER = '369_day_kline';
+const PROVIDER_369 = '369_day_kline';
+const PROVIDER_BAOSTOCK = 'baostock_daily_AStock';
+
+function aShareAnomalyFloor(day, configured) {
+  // A current ~5k threshold is not a valid anomaly floor for 2020's smaller
+  // listed universe. These are conservative screening hints, NOT universe proof.
+  const historyFloor = day < '2022-01-01' ? 3000 : day < '2024-01-01' ? 4000 :
+    day < '2025-01-01' ? 4500 : Number(configured ?? 5000);
+  return Math.min(Number(configured ?? 5000), historyFloor);
+}
 const PROBE_TARGETS = [
   { name: 'sse_homepage', kind: 'PUBLIC_SITE_CONNECTIVITY_ONLY', url: 'https://www.sse.com.cn/' },
   { name: 'szse_homepage', kind: 'PUBLIC_SITE_CONNECTIVITY_ONLY', url: 'https://www.szse.cn/' },
@@ -73,34 +83,55 @@ async function download369(day, token) {
 export async function collectDay(env, day, trigger = 'manual', options = {}) {
   requireBindings(env);
   requireTradingDate(day);
+  const useBaostock = env.PRIMARY_MARKET_SOURCE === 'baostock';
+  const provider = useBaostock ? PROVIDER_BAOSTOCK : PROVIDER_369;
   const id = crypto.randomUUID();
   const startedAt = new Date().toISOString();
   await env.DB.prepare('INSERT INTO market_runs(id,trade_date,source,started_at,status) VALUES(?,?,?,?,?)')
-    .bind(id, day, PROVIDER, startedAt, 'RUNNING').run();
-  const prefix = `logic-b/369/${day}/${id}`;
+    .bind(id, day, provider, startedAt, 'RUNNING').run();
+  const prefix = `logic-b/${useBaostock ? 'baostock' : '369'}/${day}/${id}`;
   try {
-    const { payload, rawText } = await download369(day, env.TOP369_API_KEY);
+    let payload;
+    let rawText;
+    if (useBaostock) {
+      const connector = options.baostockConnector || (await import('cloudflare:sockets')).connect;
+      ({ payload, rawText } = await fetchBaostockDay(day, connector));
+    } else {
+      ({ payload, rawText } = await download369(day, env.TOP369_API_KEY));
+    }
     const sourceRows = providerRows(payload);
     const normalized = normalizeSnapshot(sourceRows, day);
-    const audit = auditSnapshot(sourceRows.length, normalized, { minA: env.MIN_A_COUNT, minCB: env.MIN_CB_COUNT });
+    const audit = auditSnapshot(sourceRows.length, normalized,
+      { minA: useBaostock ? aShareAnomalyFloor(day, env.MIN_A_COUNT) : env.MIN_A_COUNT,
+        minCB: useBaostock ? 0 : env.MIN_CB_COUNT });
     const rawHash = await sha256(rawText);
-    const rawKey = `${prefix}/provider.json`;
+    // BaoStock's first-party TCP body is delimiter-separated text, not JSON.
+    const rawKey = `${prefix}/provider.${useBaostock ? 'txt' : 'json'}`;
     const normKey = `${prefix}/normalized.jsonl`;
     const manifestKey = `${prefix}/manifest.json`;
     const finishedAt = new Date().toISOString();
     const storeQuotes = options.storeQuotes !== false;
     const manifest = {
-      schema_version: 1, run_id: id, source: PROVIDER, underlying_origin: '369.top',
+      schema_version: 1, run_id: id, source: provider,
+      underlying_origin: useBaostock ? 'public-api.baostock.com:10030' : '369.top',
       trade_date: day, observed_at: startedAt, retrieved_at: finishedAt,
-      trigger, source_url: `https://api.369.top/api/a/stock/day_kline?date=${day}`,
-      raw_sha256: rawHash, price_adjustment: 'UNVERIFIED', quote_units: 'UNVERIFIED',
+      trigger, source_url: useBaostock ? 'https://www.baostock.com/mainContent?file=DailyUpdates.md'
+        : `https://api.369.top/api/a/stock/day_kline?date=${day}`,
+      source_protocol: useBaostock ? 'BAOSTOCK_V0_9_4_TCP_DEFLATE_TYPE_98' : 'HTTPS_JSON',
+      raw_format: useBaostock ? 'DECOMPRESSED_PROVIDER_RESPONSE_BODY' : 'PROVIDER_JSON',
+      raw_sha256: rawHash, price_adjustment: useBaostock ? 'NO_ADJUSTMENT' : 'UNVERIFIED',
+      quote_units: useBaostock ? 'volume=shares;amount=CNY;turnover=percent' : 'UNVERIFIED',
       ...audit, source_license: 'CHECK_PROVIDER_TERMS_BEFORE_REDISTRIBUTION',
+      coverage_scope: useBaostock ? 'MAINLAND_A_SHARES_ONLY;NO_INDEPENDENT_BOND_COVERAGE' : 'MIXED_SECURITIES_UNVERIFIED',
+      anomaly_floor_type: useBaostock ? 'HISTORICAL_HEURISTIC_ONLY' : 'CONFIGURED_COUNT_ONLY',
       first_public_at: null, historical_ST_verified: false,
       financial_valuation_verified: false,
       quote_storage: storeQuotes ? 'R2_AND_D1' : 'R2_ONLY',
     };
     // Keep full provider payload and invalid-row evidence privately in R2.
-    await env.RAW.put(rawKey, rawText, { httpMetadata: { contentType: 'application/json' } });
+    await env.RAW.put(rawKey, rawText, { httpMetadata: {
+      contentType: useBaostock ? 'text/plain; charset=utf-8' : 'application/json',
+    } });
     await env.RAW.put(normKey, normalized.valid.map(x => JSON.stringify(x)).join('\n') + '\n',
       { httpMetadata: { contentType: 'application/x-ndjson' } });
     await env.RAW.put(manifestKey, JSON.stringify(manifest),
@@ -116,7 +147,8 @@ export async function collectDay(env, day, trigger = 'manual', options = {}) {
     return { run_id: id, trade_date: day, trigger, ...savedAudit };
   } catch (error) {
     const message = safeError(error);
-    const status = /HTTP_(401|403|429)_STOP|NOT_CONFIGURED/.test(message) ? 'BLOCKED' : 'FAILED';
+    const status = /HTTP_(401|403|429)_STOP|NOT_CONFIGURED|BAOSTOCK_BLACKLIST_STOP/.test(message)
+      ? 'BLOCKED' : 'FAILED';
     await env.DB.prepare('UPDATE market_runs SET status=?,finished_at=?,error=? WHERE id=?')
       .bind(status, new Date().toISOString(), message, id).run();
     return { run_id: id, trade_date: day, trigger, status, error: message };
@@ -274,11 +306,11 @@ export default {
   async scheduled(event, env, ctx) {
     // Historical backfill has moved to Queue self-chaining. Discard old Cron
     // events during schedule propagation; never treat them as daily runs.
-    if (event.cron !== '20 8 * * 1-5') {
+    if (event.cron !== '20 10 * * 1-5') {
       console.log(JSON.stringify({ event: 'logic_b_unknown_cron', cron: event.cron }));
       return;
     }
-    // UTC 08:20 on weekdays = China 16:20, NOT a verified trading-day calendar.
+    // UTC 10:20 on weekdays = China 18:20, after BaoStock's daily update.
     ctx.waitUntil((async () => {
       const result = await collectDay(env, chinaToday(), `cron:${event.cron}`);
       console.log('logic_b_market_run', JSON.stringify({ id: result.run_id, date: result.trade_date, status: result.status }));
