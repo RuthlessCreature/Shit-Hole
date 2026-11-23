@@ -4,13 +4,13 @@
 
 用户已经明确：有 **Cloudflare Workers Paid**，逻辑B生产系统要**完全云端无人值守**，不使用本地电脑采集，也不默认依赖 GitHub Actions。此前文档提到的“本地 Codex”只是工程开发和历史脚本迁移的上下文，不再是生产运行方案。整个项目必须与其他交易系统及其 Cloudflare 项目隔离，不自动向用户账户部署。
 
-新增 [`cloudflare/README.md`](cloudflare/README.md)：Paid Worker 直接定时触发、369日K鉴权抓取、D1逐证券入库、R2保留原始响应、实时保留来源审计、只读REST接口和管理员探针。以北京时间16:20触发工作日抓取，但周一至周五不是完整交易日历。**这是离线测试通过的部署原型，尚未在用户的 Cloudflare 真实验证采集。**
+新增 [`cloudflare/README.md`](cloudflare/README.md)：Paid Worker 直接定时触发、369日K鉴权抓取、D1逐证券入库、R2保留原始响应、实时保留来源审计、只读REST接口和管理员探针。以北京时间16:20触发工作日抓取，但周一至周五不是完整交易日历。**Worker、D1、R2、Cron已在用户指定Cloudflare账户实际部署；369密钥仅在Cloudflare Secret中；尚未出现已验证市场采集记录。**
 
 真实状态：Cloudflare适配器目前只有 **369（需用户在CF配置合法可用的 `TOP369_API_KEY`）**；上交所、深交所、巨潮仅有首页连通性探针，不能视为免费数据适配器成功。MCP、交易卡云端计算、历史ST、财报、转债条款和信用债全量数据仍未完成。
 
-本轮离线验收：`node --test cloudflare/tests/*.test.mjs` 11项通过；`python -m unittest discover -s tests -v` 原有10项通过。**尚未完成 wrangler远程构建、D1迁移及源数据实抓。**
+本轮离线验收：`node --test cloudflare/tests/*.test.mjs` 11项通过；`python -m unittest discover -s tests -v` 原有10项通过。**Cloudflare API已上传Worker并成功迁移D1，但尚未完成业务源真实采集、覆盖率与外部HTTP实测。**
 
-管理员下一步：按 `cloudflare/README.md` 创建独立D1/R2、配置 Cloudflare Secrets（不要在公开聊天或GitHub贴密钥）、手动部署Worker、执行 `POST /api/v1/admin/probe` 和指定日期 `/api/v1/admin/collect`；审查返回的 `PROVISIONAL`/`PARTIAL`/`BLOCKED` 和R2记录，再决定是否扩大采集。部署前应先确认源许可和使用额度。
+管理员下一步：检查已启用的北京时间16:20 Cron 产生的 `market_runs`、`source_probes`、R2原始快照，核验 `PROVISIONAL`/`PARTIAL`/`BLOCKED` 与来源许可。`ADMIN_TOKEN`/`READ_TOKEN` 尚未配置，私有查询REST保持关闭；ChatGPT可先经已授权Cloudflare插件查询D1，标准MCP仍待实现。
 
 后续核心优先级仍是：官方/免费业务数据源真实采集与独立证券池覆盖核验 → 20日历史和披露时点 → 云端扫描研究卡 → 只读MCP连接。不得把“Cloudflare能访问首页”冒充“已经覆盖全市场”。
 
