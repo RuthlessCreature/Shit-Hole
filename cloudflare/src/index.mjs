@@ -185,6 +185,11 @@ async function serveRead(request, env, url) {
     if (!['PROVISIONAL', 'PARTIAL'].includes(run.status)) {
       return reply({ error: 'LATEST_RUN_NOT_USABLE', trade_date: day, run_id: run.id, status: run.status }, 409);
     }
+    const runAudit = run.audit_json ? JSON.parse(run.audit_json) : {};
+    if (runAudit.quote_storage === 'R2_ONLY') {
+      return reply({ error: 'HISTORICAL_QUOTES_IN_PRIVATE_R2', trade_date: day,
+        run_id: run.id, note: 'R2 history is archived, but this D1 pagination API indexes recent sessions only.' }, 409);
+    }
     const asset = url.searchParams.get('asset') || 'ALL';
     if (!['ALL', 'A股', '可转债候选', 'ETF/基金候选', '其他证券'].includes(asset)) {
       return reply({ error: 'INVALID_ASSET' }, 400);
