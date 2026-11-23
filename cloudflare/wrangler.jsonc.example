@@ -5,7 +5,7 @@
   "compatibility_date": "2026-11-23",
   "limits": { "cpu_ms": 300000 },
   "triggers": {
-    "crons": ["20 8 * * 1-5"]
+    "crons": ["20 8 * * 1-5", "*/15 * * * *"]
   },
   "d1_databases": [
     {
