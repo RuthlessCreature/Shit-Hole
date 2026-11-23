@@ -5,7 +5,18 @@
   "compatibility_date": "2026-11-23",
   "limits": { "cpu_ms": 300000 },
   "triggers": {
-    "crons": ["20 8 * * 1-5", "*/5 * * * *"]
+    "crons": ["20 8 * * 1-5"]
+  },
+  "queues": {
+    "producers": [{ "binding": "BACKFILL_QUEUE", "queue": "shit-hole-history-backfill" }],
+    "consumers": [{
+      "queue": "shit-hole-history-backfill",
+      "max_batch_size": 1,
+      "max_batch_timeout": 0,
+      "max_concurrency": 1,
+      "max_retries": 5,
+      "retry_delay": 60
+    }]
   },
   "d1_databases": [
     {
