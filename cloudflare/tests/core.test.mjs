@@ -139,3 +139,15 @@ test('HTTP endpoints require credentials; public health does not leak data', asy
     { headers: { authorization: 'Bearer reader-test' } }), env);
   assert.equal(noData.status, 404);
 });
+
+test('historic R2-only sessions are never silently reported as empty D1 quotes', async () => {
+  const { env } = fakeEnv();
+  env.DB.prepare = () => ({ bind() { return { async first() {
+    return { id: 'history-run', trade_date: '2020-01-02', status: 'PARTIAL',
+      audit_json: JSON.stringify({ quote_storage: 'R2_ONLY' }) };
+  } }; } });
+  const response = await handler.fetch(new Request('https://logic-b.example/api/v1/market/quotes?date=2020-01-02',
+    { headers: { authorization: 'Bearer reader-test' } }), env);
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).error, 'HISTORICAL_QUOTES_IN_PRIVATE_R2');
+});
