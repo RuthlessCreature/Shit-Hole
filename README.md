@@ -6,7 +6,7 @@
 
 **2026-11-20已启动实盘研究流程（人工执行，非自动交易）：**
 
-**2026-11-23 云端部署方向**：用户确认已有 Cloudflare Workers Paid，生产系统必须完全云端运行，不能依赖本地电脑或 GitHub Actions。新增 [`cloudflare/README.md`](cloudflare/README.md) 与 Worker + D1/R2 采集/审计/只读REST基础设施。**目前仅完成离线工程与测试，尚未部署、尚未真实通过云端行情数据源验收、尚未接通MCP或云端扫描交易卡。** 部署仍由 Cloudflare 账号管理员人工执行，原有 `logic_b_work` Python 研究逻辑不被删除或混入外部项目。
+**2026-11-23 云端部署方向**：用户确认已有 Cloudflare Workers Paid，生产系统必须完全云端运行，不能依赖本地电脑或 GitHub Actions。新增 [`cloudflare/README.md`](cloudflare/README.md) 与 Worker + D1/R2 采集/审计/只读REST基础设施。**Worker/D1/R2/Cron已于2026-11-23在用户指定Cloudflare账户实际部署，369凭据以Secret保存；真实采集覆盖尚未验收，MCP与云端交易卡仍未接通。** 部署仍由 Cloudflare 账号管理员人工执行，原有 `logic_b_work` Python 研究逻辑不被删除或混入外部项目。
 
 - 先做沪深股票与可转债全量研究卡，所有证券保留；交易仓位预算暂为空。
 - `logic_b_work/trade_cards.py`可将已核验的历史价量扫描JSON转换为逐券研究卡、沪深优先研究队列与覆盖率报告（纯标准库）。
