@@ -1,5 +1,5 @@
 import { auditSnapshot, chinaToday, normalizeSnapshot, providerRows, requireTradingDate, safeError } from './core.mjs';
-import { runBackfill } from './backfill.mjs';
+import { processQueueBackfill } from './queue.mjs';
 import { DASHBOARD_HTML, DASHBOARD_CSS, DASHBOARD_JS, readPublicOverview } from './dashboard.mjs';
 
 const PROVIDER = '369_day_kline';
@@ -261,17 +261,19 @@ export default {
       return reply({ error: message }, status);
     }
   },
-  async scheduled(event, env, ctx) {
-    // Incremental collection and bounded historical backfill are separate Crons.
-    // Accept the previous schedule during Cloudflare Cron propagation, so
-    // events already queued under the old trigger cannot become daily runs.
-    if (event.cron === '*/5 * * * *' || event.cron === '*/15 * * * *') {
-      ctx.waitUntil((async () => {
-        const result = await runBackfill(env, collectDay);
-        console.log(JSON.stringify({ event: 'logic_b_backfill', ...result }));
-      })());
-      return;
+  async queue(batch, env) {
+    for (const message of batch.messages) {
+      if (message.body?.kind !== 'backfill-next') {
+        console.log(JSON.stringify({ event: 'logic_b_unknown_queue_message' }));
+        continue;
+      }
+      const result = await processQueueBackfill(env, collectDay);
+      console.log(JSON.stringify({ event: 'logic_b_queue_backfill', ...result }));
     }
+  },
+  async scheduled(event, env, ctx) {
+    // Historical backfill has moved to Queue self-chaining. Discard old Cron
+    // events during schedule propagation; never treat them as daily runs.
     if (event.cron !== '20 8 * * 1-5') {
       console.log(JSON.stringify({ event: 'logic_b_unknown_cron', cron: event.cron }));
       return;
