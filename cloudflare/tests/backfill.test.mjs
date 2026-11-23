@@ -86,6 +86,65 @@ test('three-date pilot preserves history in R2, records audit in D1, then pauses
   } finally { globalThis.fetch = original; sqlite.close(); }
 });
 
+test('full-history mode ignores the old pilot cap and finishes only after the queue is empty', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async url => {
+    const u = new URL(url);
+    if (u.pathname.endsWith('/trade_calendar')) {
+      return Response.json({ code: 0, data: { rows: [
+        { date: '2020-01-02' }, { date: '2020-01-03' }, { date: '2020-01-06' },
+      ] } });
+    }
+    const day = u.searchParams.get('date');
+    return Response.json({ code: 0, data: { rows: [{ code: 'sh600567', date: day,
+      open: 1, high: 1.2, low: 0.9, close: 1.1, volume: 123 }] } });
+  };
+  const { sqlite, env } = fakeBackfillEnv();
+  sqlite.exec("UPDATE backfill_control SET attempt_limit=0,enabled=1,state='RUNNING' WHERE id=1");
+  try {
+    for (const day of ['2020-01-02', '2020-01-03', '2020-01-06']) {
+      const result = await runBackfill(env, collectDay);
+      assert.equal(result.trade_date, day);
+      assert.equal(result.status, 'PARTIAL');
+      const current = sqlite.prepare('SELECT state,enabled FROM backfill_control WHERE id=1').get();
+      assert.equal(current.state, 'RUNNING');
+      assert.equal(current.enabled, 1);
+    }
+    assert.equal((await runBackfill(env, collectDay)).status, 'FINISHED');
+    const control = sqlite.prepare('SELECT state,enabled,attempts FROM backfill_control WHERE id=1').get();
+    assert.equal(control.state, 'FINISHED');
+    assert.equal(control.enabled, 0);
+    assert.equal(control.attempts, 3);
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});
+
+test('full-history mode retries a transient provider failure without skipping the date', async () => {
+  const original = globalThis.fetch;
+  let historyCalls = 0;
+  globalThis.fetch = async url => {
+    const u = new URL(url);
+    if (u.pathname.endsWith('/trade_calendar')) {
+      return Response.json({ code: 0, data: { rows: [{ date: '2020-01-02' }] } });
+    }
+    if (++historyCalls === 1) return new Response('upstream error', { status: 500 });
+    return Response.json({ code: 0, data: { rows: [{ code: 'sh600567', date: '2020-01-02',
+      open: 1, high: 1, low: 1, close: 1, volume: 1 }] } });
+  };
+  const { sqlite, env } = fakeBackfillEnv();
+  sqlite.exec("UPDATE backfill_control SET attempt_limit=0,enabled=1,state='RUNNING' WHERE id=1");
+  try {
+    const first = await runBackfill(env, collectDay);
+    assert.equal(first.status, 'FAILED');
+    assert.equal(first.retry_scheduled, true);
+    assert.equal(sqlite.prepare('SELECT status FROM backfill_days WHERE trade_date=?').get('2020-01-02').status, 'PENDING');
+    const second = await runBackfill(env, collectDay);
+    assert.equal(second.status, 'PARTIAL');
+    assert.equal(second.trade_date, '2020-01-02');
+    assert.equal((await runBackfill(env, collectDay)).status, 'FINISHED');
+    assert.equal(sqlite.prepare('SELECT attempts FROM backfill_days WHERE trade_date=?').get('2020-01-02').attempts, 2);
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});
+
 test('HTTP 429 stops the historical pilot after one attempt without retry loops', async () => {
   const original = globalThis.fetch;
   globalThis.fetch = async url => String(url).includes('trade_calendar')
