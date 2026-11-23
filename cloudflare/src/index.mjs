@@ -1,4 +1,5 @@
 import { auditSnapshot, chinaToday, normalizeSnapshot, providerRows, requireTradingDate, safeError } from './core.mjs';
+import { runBackfill } from './backfill.mjs';
 
 const PROVIDER = '369_day_kline';
 const PROBE_TARGETS = [
@@ -68,7 +69,7 @@ async function download369(day, token) {
   return { payload, rawText };
 }
 
-export async function collectDay(env, day, trigger = 'manual') {
+export async function collectDay(env, day, trigger = 'manual', options = {}) {
   requireBindings(env);
   requireTradingDate(day);
   const id = crypto.randomUUID();
@@ -86,6 +87,7 @@ export async function collectDay(env, day, trigger = 'manual') {
     const normKey = `${prefix}/normalized.jsonl`;
     const manifestKey = `${prefix}/manifest.json`;
     const finishedAt = new Date().toISOString();
+    const storeQuotes = options.storeQuotes !== false;
     const manifest = {
       schema_version: 1, run_id: id, source: PROVIDER, underlying_origin: '369.top',
       trade_date: day, observed_at: startedAt, retrieved_at: finishedAt,
@@ -94,6 +96,7 @@ export async function collectDay(env, day, trigger = 'manual') {
       ...audit, source_license: 'CHECK_PROVIDER_TERMS_BEFORE_REDISTRIBUTION',
       first_public_at: null, historical_ST_verified: false,
       financial_valuation_verified: false,
+      quote_storage: storeQuotes ? 'R2_AND_D1' : 'R2_ONLY',
     };
     // Keep full provider payload and invalid-row evidence privately in R2.
     await env.RAW.put(rawKey, rawText, { httpMetadata: { contentType: 'application/json' } });
@@ -101,12 +104,15 @@ export async function collectDay(env, day, trigger = 'manual') {
       { httpMetadata: { contentType: 'application/x-ndjson' } });
     await env.RAW.put(manifestKey, JSON.stringify(manifest),
       { httpMetadata: { contentType: 'application/json' } });
-    await insertQuotes(env.DB, id, normalized.valid);
+    // D1 has a hard per-database size limit. Preserve the whole historical
+    // universe in R2; only recent data is indexed as individual D1 quotes.
+    if (storeQuotes) await insertQuotes(env.DB, id, normalized.valid);
+    const savedAudit = { ...audit, quote_storage: manifest.quote_storage };
     await env.DB.prepare(`UPDATE market_runs SET status=?,finished_at=?,total_rows=?,normalized_rows=?,
       raw_key=?,normalized_key=?,manifest_key=?,raw_sha256=?,audit_json=? WHERE id=?`)
       .bind(audit.status, finishedAt, sourceRows.length, normalized.valid.length,
-        rawKey, normKey, manifestKey, rawHash, JSON.stringify(audit), id).run();
-    return { run_id: id, trade_date: day, trigger, ...audit };
+        rawKey, normKey, manifestKey, rawHash, JSON.stringify(savedAudit), id).run();
+    return { run_id: id, trade_date: day, trigger, ...savedAudit };
   } catch (error) {
     const message = safeError(error);
     const status = /HTTP_(401|403|429)_STOP|NOT_CONFIGURED/.test(message) ? 'BLOCKED' : 'FAILED';
@@ -230,8 +236,15 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
+    // Incremental collection and bounded historical backfill are separate Crons.
+    if (event.cron === '*/15 * * * *') {
+      ctx.waitUntil((async () => {
+        const result = await runBackfill(env, collectDay);
+        console.log(JSON.stringify({ event: 'logic_b_backfill', ...result }));
+      })());
+      return;
+    }
     // UTC 08:20 on weekdays = China 16:20, NOT a verified trading-day calendar.
-    // Catch failures inside collectDay and persist a durable blocked/failed run.
     ctx.waitUntil((async () => {
       const result = await collectDay(env, chinaToday(), `cron:${event.cron}`);
       console.log('logic_b_market_run', JSON.stringify({ id: result.run_id, date: result.trade_date, status: result.status }));
