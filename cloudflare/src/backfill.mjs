@@ -2,6 +2,7 @@ import { providerRows, requireTradingDate, safeError } from './core.mjs';
 
 const CALENDAR_API = 'https://api.369.top/api/a/market/trade_calendar';
 const COLD_WINDOW_DAYS = 45;
+const MAX_TRANSIENT_DAY_ATTEMPTS = 3;
 
 export function parseTradeCalendar(payload, start, end) {
   requireTradingDate(start);
@@ -81,17 +82,21 @@ export async function runBackfill(env, collectDay) {
   if (claimed.meta?.changes !== 1) return { status: 'PAUSED_OR_LOCKED' };
   try {
     const control = await env.DB.prepare('SELECT * FROM backfill_control WHERE id=1').first();
-    if (control.attempts >= control.attempt_limit) {
+    // attempt_limit=0 means the full calendar, with no artificial pilot cap.
+    if (control.attempt_limit > 0 && control.attempts >= control.attempt_limit) {
       await env.DB.prepare("UPDATE backfill_control SET enabled=0,state='PILOT_COMPLETE' WHERE id=1").run();
       return { status: 'PILOT_COMPLETE', attempts: control.attempts };
     }
     let calendarRows = control.calendar_rows;
     if (!control.calendar_loaded_at) calendarRows = await seedCalendar(env, control);
-    const target = await env.DB.prepare(`SELECT trade_date FROM backfill_days
+    const target = await env.DB.prepare(`SELECT trade_date,attempts FROM backfill_days
       WHERE status='PENDING' ORDER BY trade_date LIMIT 1`).first();
     if (!target) {
-      await env.DB.prepare("UPDATE backfill_control SET enabled=0,state='FINISHED' WHERE id=1").run();
-      return { status: 'FINISHED', calendar_rows: calendarRows };
+      const failures = await env.DB.prepare("SELECT COUNT(*) AS n FROM backfill_days WHERE status IN ('FAILED','BLOCKED')").first();
+      const state = Number(failures?.n || 0) > 0 ? 'FINISHED_WITH_GAPS' : 'FINISHED';
+      await env.DB.prepare('UPDATE backfill_control SET enabled=0,state=?,updated_at=? WHERE id=1')
+        .bind(state, new Date().toISOString()).run();
+      return { status: state, calendar_rows: calendarRows, failed_days: Number(failures?.n || 0) };
     }
     const date = target.trade_date;
     const claimDay = await env.DB.prepare(`UPDATE backfill_days SET status='RUNNING',
@@ -102,18 +107,20 @@ export async function runBackfill(env, collectDay) {
       storeQuotes: storeHistoricalQuotesInD1(date),
     });
     const done = ['PROVISIONAL', 'PARTIAL'].includes(result.status);
+    const retry = result.status === 'FAILED' && target.attempts + 1 < MAX_TRANSIENT_DAY_ATTEMPTS;
     await env.DB.prepare(`UPDATE backfill_days SET status=?,last_run_id=?,last_error=?,updated_at=?
-      WHERE trade_date=?`).bind(done ? 'STORED_UNVERIFIED' : result.status,
+      WHERE trade_date=?`).bind(done ? 'STORED_UNVERIFIED' : retry ? 'PENDING' : result.status,
       result.run_id ?? null, result.error ?? null, new Date().toISOString(), date).run();
     const attempts = control.attempts + 1;
     const blocked = result.status === 'BLOCKED';
-    const pilotComplete = attempts >= control.attempt_limit;
+    const pilotComplete = control.attempt_limit > 0 && attempts >= control.attempt_limit;
     await env.DB.prepare(`UPDATE backfill_control SET attempts=?,enabled=?,state=?,last_error=?,updated_at=? WHERE id=1`)
       .bind(attempts, blocked || pilotComplete ? 0 : 1,
         blocked ? 'BLOCKED' : pilotComplete ? 'PILOT_COMPLETE' : 'RUNNING',
         result.error ?? null, new Date().toISOString()).run();
     return { status: result.status, trade_date: date, run_id: result.run_id,
-      quote_storage: result.quote_storage ?? null, attempts, attempt_limit: control.attempt_limit };
+      quote_storage: result.quote_storage ?? null, retry_scheduled: retry,
+      attempts, attempt_limit: control.attempt_limit };
   } catch (error) {
     const message = safeError(error);
     await env.DB.prepare(`UPDATE backfill_control SET enabled=0,state='BLOCKED_OR_FAILED',
