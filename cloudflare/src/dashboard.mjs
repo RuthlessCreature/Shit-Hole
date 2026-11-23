@@ -27,6 +27,7 @@ export const DASHBOARD_HTML = `<!doctype html>
         <div class="progress"><div id="history-bar" class="progress-fill"></div></div>
         <div class="stat-line"><span id="history-percent">0%</span><span id="history-breakdown">历史队列待创建</span></div>
         <div class="information"><div><span>调度</span><b>每15分钟 · 单次最多1日</b></div><div><span>归档</span><b>R2原始JSON + 标准化JSONL</b></div><div><span>热数据</span><b>最近45自然日额外写D1</b></div><div><span>首批策略</span><b>试抓3日后自动暂停</b></div></div>
+        <p class="footnote" id="history-error">暂无历史任务异常。</p>
       </article>
       <article class="card detail">
         <div class="section-head"><h2>当日增量采集</h2><span class="chip" id="daily-chip">尚无批次</span></div>
@@ -57,7 +58,7 @@ const escapeAll=node=>{while(node.firstChild)node.removeChild(node.firstChild)};
 function item(target,name,sub,status){const row=document.createElement('div');row.className='list-row';const left=document.createElement('div');const a=document.createElement('div');a.className='list-name';a.textContent=name;const b=document.createElement('div');b.className='list-sub';b.textContent=sub;left.append(a,b);const right=document.createElement('span');const good=/PROVISIONAL|PARTIAL|STORED_UNVERIFIED|HTTP_REACHABLE/.test(status);const bad=/FAILED|BLOCKED|ERROR|ACCESS_/.test(status);right.className='pill '+(good?'good':bad?'bad':'neutral');right.textContent=label(status);row.append(left,right);target.append(row)}
 function render(data){el('connection').textContent='在线 · 自动刷新';el('clock').textContent=moment(data.generated_at);
 const d=data.daily||{};el('daily-status').textContent=d.status?label(d.status):'等待当日任务';el('daily-sub').textContent=d.status?'已记录云端批次':'计划北京时间16:20采集';el('daily-rows').textContent=d.normalized_rows==null?'--':fmt(d.normalized_rows);el('daily-date').textContent=d.trade_date||data.china_today;el('daily-time').textContent=moment(d.finished_at||d.started_at);el('daily-quality').textContent=d.universe_verified?'已独立对账':'未验证全市场覆盖';el('daily-chip').textContent=d.status?label(d.status):'尚无批次';el('daily-message').textContent=d.error_code?'采集异常：'+d.error_code:'行情与合理估值分离；没有证据时估值保持未知。';const assets=d.assets||{};el('daily-assets').textContent=d.status?'A股 '+fmt(assets['A股']||0)+' · 转债候选 '+fmt(assets['可转债候选']||0):'A股 / 可转债 待采集';
-const h=data.history||{};const total=h.calendar_rows||0,done=h.stored_unverified||0,pct=total?Math.min(100,100*done/total):0;el('history-done').textContent=fmt(done);el('history-total').textContent=total?'总交易日 '+fmt(total):'等待交易日历';el('history-state').textContent=label(h.state);el('history-attempts').textContent=fmt(h.attempts||0)+' / '+fmt(h.attempt_limit||0)+' 次试抓';el('history-chip').textContent=h.enabled?'运行中':label(h.state);el('history-range').textContent=(h.start_date||'2020-01-01')+' — '+(h.end_date||'2026-11-20');el('history-bar').style.width=pct.toFixed(2)+'%';el('history-percent').textContent=pct.toFixed(1)+'%';el('history-breakdown').textContent=total?'待抓 '+fmt(h.pending||0)+' · 失败 '+fmt(h.failed||0)+' · 受限 '+fmt(h.blocked||0):'等待历史交易日历首次同步';
+const h=data.history||{};const total=h.calendar_rows||0,done=h.stored_unverified||0,pct=total?Math.min(100,100*done/total):0;el('history-done').textContent=fmt(done);el('history-total').textContent=total?'总交易日 '+fmt(total):'等待交易日历';el('history-state').textContent=label(h.state);el('history-attempts').textContent=fmt(h.attempts||0)+' / '+fmt(h.attempt_limit||0)+' 次试抓';el('history-chip').textContent=h.enabled?'运行中':label(h.state);el('history-range').textContent=(h.start_date||'2020-01-01')+' — '+(h.end_date||'2026-11-20');el('history-bar').style.width=pct.toFixed(2)+'%';el('history-percent').textContent=pct.toFixed(1)+'%';el('history-breakdown').textContent=total?'待抓 '+fmt(h.pending||0)+' · 失败 '+fmt(h.failed||0)+' · 受限 '+fmt(h.blocked||0):'等待历史交易日历首次同步';el('history-error').textContent=h.last_error_code?'历史任务异常：'+h.last_error_code:'暂无历史任务异常。';
 const historyList=el('history-list');escapeAll(historyList);const recent=h.recent||[];if(!recent.length)item(historyList,'等待首个2020年交易日','已创建任务后将在这里显示执行结果','PENDING');for(const r of recent)item(historyList,r.trade_date,'尝试 '+fmt(r.attempts)+' 次'+(r.run_id?' · 批次已记录':''),r.status);el('history-last').textContent=recent.length?moment(recent[0].updated_at):'暂无任务';
 const sourceList=el('source-list');escapeAll(sourceList);const probes=data.probes||[];if(!probes.length)item(sourceList,'暂无探针结果','每日增量任务执行后会记录','PENDING');for(const p of probes)item(sourceList,p.source+' · '+p.endpoint_type,'HTTP '+(p.http_status??'--')+' · '+moment(p.checked_at),p.status);el('refresh-time').textContent='上次更新 '+moment(data.generated_at)+' · 每30秒刷新';}
 async function tick(){try{const r=await fetch('/api/v1/public/overview',{cache:'no-store'});if(!r.ok)throw Error('HTTP_'+r.status);const payload=await r.json();render(payload)}catch(e){el('connection').textContent='状态读取失败';el('refresh-time').textContent='连接失败，将自动重试';}}tick();setInterval(tick,30000);
@@ -72,7 +73,7 @@ export async function readPublicOverview(env) {
   const day = chinaToday();
   const [daily, control, stats, recent, probes] = await Promise.all([
     env.DB.prepare('SELECT trade_date,status,started_at,finished_at,normalized_rows,audit_json,error FROM market_runs WHERE trade_date=? ORDER BY started_at DESC LIMIT 1').bind(day).first(),
-    env.DB.prepare('SELECT start_date,end_date,enabled,state,calendar_rows,attempts,attempt_limit,calendar_loaded_at FROM backfill_control WHERE id=1').first(),
+    env.DB.prepare('SELECT start_date,end_date,enabled,state,calendar_rows,attempts,attempt_limit,calendar_loaded_at,last_error FROM backfill_control WHERE id=1').first(),
     env.DB.prepare('SELECT status,COUNT(*) AS n FROM backfill_days GROUP BY status').all(),
     env.DB.prepare("SELECT trade_date,status,attempts,last_run_id,updated_at FROM backfill_days WHERE status!='PENDING' ORDER BY updated_at DESC LIMIT 6").all(),
     env.DB.prepare('SELECT source,endpoint_type,status,http_status,checked_at FROM source_probes ORDER BY checked_at DESC LIMIT 30').all(),
@@ -93,6 +94,7 @@ export async function readPublicOverview(env) {
       start_date: control?.start_date || null, end_date: control?.end_date || null,
       state: control?.state || 'NOT_INITIALIZED', enabled: control?.enabled === 1,
       attempts: control?.attempts ?? 0, attempt_limit: control?.attempt_limit ?? 0,
+      last_error_code: publicError(control?.last_error),
       calendar_rows: control?.calendar_rows ?? 0,
       stored_unverified: counts.STORED_UNVERIFIED ?? 0, pending: counts.PENDING ?? 0,
       blocked: counts.BLOCKED ?? 0, failed: (counts.FAILED ?? 0) + (counts.BLOCKED_OR_FAILED ?? 0),
